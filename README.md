@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="static/logo.png" alt="bellowtheroot" width="200px">
+  <img src="static/logo.png" alt="bellowtheroot" width="500px">
   <br>
 </h1>
 
