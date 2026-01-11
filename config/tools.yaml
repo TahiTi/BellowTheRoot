@@ -1,0 +1,199 @@
+tools:
+  subfinder:
+    enabled: true
+    type: cli
+    description: Fast passive subdomain enumeration tool
+    command: subfinder
+    args:
+    - -d {domain}
+    - -silent
+    output: lines
+    path_setting: tool_subfinder_path
+  assetfinder:
+    enabled: false
+    type: cli
+    description: Find domains and subdomains related to a given domain
+    command: assetfinder
+    args:
+    - --subs-only {domain}
+    output: lines
+    path_setting: tool_assetfinder_path
+  sublist3r:
+    enabled: false
+    type: cli
+    description: Subdomains enumeration tool using search engines
+    command: sublist3r
+    args:
+    - -d {domain}
+    - -n
+    output: lines
+    path_setting: tool_sublist3r_path
+  oneforall:
+    enabled: false
+    type: cli
+    description: Powerful subdomain collection tool
+    command: python3 /opt/OneForAll/oneforall.py
+    args:
+    - --target {domain}
+    - run
+    output: csv
+    output_dir: /opt/OneForAll/results
+    output_file: '{domain}.csv'
+    csv_column: subdomain
+    path_setting: tool_oneforall_path
+  crtsh:
+    enabled: false
+    type: api
+    description: Certificate Transparency log search
+    method: GET
+    url: https://crt.sh/?q=%.{domain}&output=json
+    headers:
+      User-Agent: Mozilla/5.0 (BellowTheRoot Subdomain Enumeration Tool)
+    timeout: 30
+    response_type: json
+    extract:
+      type: array
+      fields:
+      - common_name
+      - name_value
+      split_on_newline: true
+      strip_wildcard: true
+  securitytrails:
+    enabled: false
+    type: api
+    description: SecurityTrails subdomain API
+    method: GET
+    url: https://api.securitytrails.com/v1/domain/{domain}/subdomains
+    headers:
+      APIKEY: '{api_key}'
+      Accept: application/json
+    api_key_setting: tool_securitytrails_api_key
+    timeout: 30
+    response_type: json
+    extract:
+      type: json_path
+      path: subdomains
+      subdomain_format: '{value}.{domain}'
+  censys:
+    enabled: false
+    type: api
+    description: Censys certificate search
+    method: GET
+    url: https://search.censys.io/api/v2/certificates/search
+    params:
+      q: 'parsed.names: {domain}'
+      per_page: 100
+    auth:
+      type: basic
+      setting: tool_censys_api_key
+    headers:
+      Accept: application/json
+    timeout: 30
+    response_type: json
+    extract:
+      type: json_path
+      path: result.hits[*].parsed.names[*]
+      strip_wildcard: true
+  virustotal:
+    enabled: false
+    type: api
+    description: VirusTotal subdomain lookup
+    method: GET
+    url: https://www.virustotal.com/api/v3/domains/{domain}/subdomains
+    headers:
+      x-apikey: '{api_key}'
+      Accept: application/json
+    api_key_setting: tool_virustotal_api_key
+    params:
+      limit: 40
+    timeout: 30
+    response_type: json
+    pagination:
+      type: cursor
+      next_path: links.next
+    extract:
+      type: json_path
+      path: data[*].id
+  wayback:
+    enabled: false
+    type: api
+    description: Wayback Machine archived URLs
+    method: GET
+    url: https://web.archive.org/cdx/search/cdx
+    params:
+      url: '*.{domain}/*'
+      output: json
+      fl: original
+      collapse: urlkey
+      matchType: domain
+    timeout: 60
+    response_type: json
+    extract:
+      type: url_extract
+      skip_first: true
+      regex: https?://([^/:?#]+)
+  commoncrawl:
+    enabled: false
+    type: api
+    description: CommonCrawl index search
+    method: GET
+    index_url: https://index.commoncrawl.org/collinfo.json
+    params:
+      url: '*.{domain}/*'
+      output: json
+      fl: url
+      limit: 10000
+    timeout: 90
+    response_type: jsonl
+    extract:
+      type: url_extract
+      field: url
+      regex: https?://([^/:?#]+)
+  bruteforce_pipeline:
+    enabled: false
+    type: pipeline
+    description: Subdomain bruteforce using alterx permutations + dnsx resolution
+    steps:
+    - name: alterx
+      command: alterx
+      args:
+      - -l {input_file}
+      - -silent
+      - -enrich
+    - name: dnsx
+      command: dnsx
+      args:
+      - -silent
+      pipe_from: alterx
+  alterx:
+    args:
+    - -d {domain}
+    command: alterx
+    description: New cli tool
+    enabled: false
+    output: lines
+    path_setting: tool_newtool_path
+    type: cli
+    category: active
+templates:
+  cli:
+    enabled: false
+    type: cli
+    description: ''
+    command: ''
+    args: []
+    output: lines
+    path_setting: ''
+  api:
+    enabled: false
+    type: api
+    description: ''
+    method: GET
+    url: ''
+    headers: {}
+    api_key_setting: ''
+    timeout: 30
+    response_type: json
+    extract:
+      type: json_path
+      path: ''

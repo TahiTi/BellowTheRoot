@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BellowTheRoot - Subdomain Enumeration</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1><i class="fas fa-network-wired"></i> BellowTheRoot</h1>
+                <p class="sidebar-subtitle">Subdomain Enumeration</p>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </a>
+                <div class="nav-group">
+                    <a href="#" class="nav-item nav-toggle" id="projectsToggle">
+                        <i class="fas fa-folder-open"></i>
+                        <span>Projects</span>
+                        <i class="fas fa-chevron-down nav-arrow"></i>
+                    </a>
+                    <div class="nav-submenu" id="projectsSubmenu">
+                        <a href="#" class="nav-subitem" id="newProjectLink">
+                            <i class="fas fa-plus"></i>
+                            <span>New Project</span>
+                        </a>
+                        <a href="#" class="nav-subitem" data-view="projects">
+                            <i class="fas fa-folder-open"></i>
+                            <span>All Projects</span>
+                        </a>
+                        <div id="sidebarProjectsList" class="sidebar-projects-list">
+                            <span class="nav-subitem-empty">No projects yet</span>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" class="nav-item" data-view="targets">
+                    <i class="fas fa-crosshairs"></i>
+                    <span>Targets</span>
+                </a>
+                <a href="#" class="nav-item" data-view="scans">
+                    <i class="fas fa-search"></i>
+                    <span>Scans</span>
+                </a>
+                <a href="#" class="nav-item" data-view="subdomains">
+                    <i class="fas fa-globe"></i>
+                    <span>All Subdomains</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="quick-stats">
+                    <div class="stat-mini">
+                        <i class="fas fa-project-diagram"></i>
+                        <span id="sidebarProjectCount">0</span> Projects
+                    </div>
+                    <div class="stat-mini">
+                        <i class="fas fa-sitemap"></i>
+                        <span id="sidebarSubdomainCount">0</span> Subdomains
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="content-header">
+                <h2 id="viewTitle">Dashboard</h2>
+                <div class="header-actions">
+                    <button id="startScanBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-play"></i> Start Scan
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <section id="dashboardView" class="view-section active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="dashTotalProjects">0</h3>
+                            <p>Total Projects</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="dashCompletedScans">0</h3>
+                            <p>Completed Scans</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-sitemap"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="dashTotalSubdomains">0</h3>
+                            <p>Total Subdomains</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="dashActiveScans">0</h3>
+                            <p>Active Scans</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-content">
+                    <div class="dashboard-card">
+                        <h3><i class="fas fa-history"></i> Recent Projects</h3>
+                        <div id="recentProjects" class="recent-list">
+                            <p class="empty-state">No projects yet</p>
+                        </div>
+                    </div>
+                    
+                    <div class="dashboard-card">
+                        <h3><i class="fas fa-clock"></i> Recent Scans</h3>
+                        <div id="recentScans" class="recent-list">
+                            <p class="empty-state">No scans yet</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- Project Detail View -->
+            <section id="projectDetailView" class="view-section">
+                <div class="breadcrumb">
+                    <a href="#" class="breadcrumb-link" data-view="projects">
+                        <i class="fas fa-arrow-left"></i> Back to Projects
+                    </a>
+                    <span class="breadcrumb-separator">/</span>
+                    <span id="currentProjectName"></span>
+                </div>
+
+                <div class="project-detail-header">
+                    <h3 id="projectDetailName"></h3>
+                    <button id="startScanFromDetail" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Start Scan
+                    </button>
+                </div>
+
+                <!-- Targets Section -->
+                <div class="section-header">
+                    <h4><i class="fas fa-crosshairs"></i> Targets</h4>
+                </div>
+                <div class="table-card">
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th>Target Domain</th>
+                                    <th>Subdomains</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectTargetsTableBody">
+                                <tr>
+                                    <td colspan="4" class="empty-state">No targets yet. Start a scan to begin enumeration.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Project Subdomains Section -->
+                <div class="section-header" style="margin-top: 30px;">
+                    <h4><i class="fas fa-sitemap"></i> All Project Subdomains</h4>
+                </div>
+                
+                <div class="filters-card">
+                    <div class="filters-header">
+                        <h3>Filters</h3>
+                        <button id="clearProjectFilters" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label for="projectSubdomainsSearch">Search:</label>
+                            <input type="text" id="projectSubdomainsSearch" placeholder="Search subdomains...">
+                        </div>
+                        <div class="filter-group">
+                            <label for="projectTargetFilter">Target:</label>
+                            <select id="projectTargetFilter">
+                                <option value="">All Targets</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>Subdomains</h3>
+                        <div class="table-controls">
+                            <div class="pagination-controls">
+                                <label for="projectSubdomainsLimit">Items per page:</label>
+                                <select id="projectSubdomainsLimit" class="limit-selector">
+                                    <option value="100">100</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value="2500">2500</option>
+                                    <option value="5000">5000</option>
+                                </select>
+                            </div>
+                            <span id="projectSubdomainsCount" class="filtered-count">Showing 0 of 0</span>
+                            <div id="bulkActionsProject" class="bulk-actions" style="display: none;">
+                                <span id="selectedCountProject" class="selected-count">0 selected</span>
+                                <button id="exportSelectedProject" class="btn btn-small btn-secondary">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                                <button id="bulkDeleteProject" class="btn btn-small btn-danger">
+                                    <i class="fas fa-trash"></i> Delete Selected
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-cell">
+                                        <input type="checkbox" id="selectAllProject" title="Select all">
+                                    </th>
+                                    <th>SubDomain Name</th>
+                                    <th>Target Domain</th>
+                                    <th>Discovered</th>
+                                    <th>Tool</th>
+                                    <th>URI</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectSubdomainsTableBody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">No subdomains found</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="projectSubdomainsPagination" class="pagination-container"></div>
+                </div>
+            </section>
+
+            <!-- Projects View -->
+            <section id="projectsView" class="view-section">
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>All Projects</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th>Project Name</th>
+                                    <th>Targets</th>
+                                    <th>Subdomains</th>
+                                    <th>Scans</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectsTableBody">
+                                <tr>
+                                    <td colspan="5" class="empty-state">Loading projects...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Targets View -->
+            <section id="targetsView" class="view-section">
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>All Targets</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"></th>
+                                    <th>Target Domain</th>
+                                    <th>Subdomains</th>
+                                    <th>Projects</th>
+                                    <th>Scans</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="targetsTableBody">
+                                <tr>
+                                    <td colspan="6" class="empty-state">Loading targets...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Target Subdomains Section (shown when target is selected) -->
+                <div id="targetSubdomainsSection" class="target-subdomains-section" style="display: none;">
+                    <div class="section-header">
+                        <h4><i class="fas fa-sitemap"></i> Subdomains for <span id="selectedTargetDomain"></span></h4>
+                        <button class="btn btn-small btn-secondary" onclick="closeTargetSubdomains()">
+                            <i class="fas fa-times"></i> Close
+                        </button>
+                    </div>
+                    
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3>Subdomains</h3>
+                            <div class="table-controls">
+                                <span id="targetSubdomainsCount" class="filtered-count">Showing 0 of 0</span>
+                            </div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="subdomains-table">
+                                <thead>
+                                    <tr>
+                                        <th class="checkbox-cell">
+                                            <input type="checkbox" id="selectAllTargetSubdomains" title="Select all">
+                                        </th>
+                                        <th>SubDomain Name</th>
+                                        <th>Target Domain</th>
+                                        <th>Discovered</th>
+                                        <th>Tool</th>
+                                        <th>URI</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="targetSubdomainsTableBody">
+                                    <tr>
+                                        <td colspan="7" class="empty-state">Loading subdomains...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="targetSubdomainsPagination" class="pagination-container"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scans View -->
+            <section id="scansView" class="view-section">
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>All Scans</h3>
+                        <div class="table-controls">
+                            <span id="scansCount" class="filtered-count">0 scans</span>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th>Target Domain</th>
+                                    <th>Project</th>
+                                    <th>Status</th>
+                                    <th>Subdomains</th>
+                                    <th>New Subdomains</th>
+                                    <th>Started</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scansTableBody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">Loading scans...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scan Results View -->
+            <section id="scanResultsView" class="view-section">
+                <div class="breadcrumb">
+                    <a href="#" id="backToProjectDetail" class="breadcrumb-link">
+                        <i class="fas fa-arrow-left"></i> Back to Project
+                    </a>
+                    <span class="breadcrumb-separator">/</span>
+                    <span id="currentScanTarget"></span>
+                </div>
+
+                <div class="scan-header">
+                    <div class="scan-info-bar">
+                        <div class="scan-status" id="scanStatus">
+                            <span class="status-badge" id="statusBadge">pending</span>
+                        </div>
+                        <div class="scan-target">
+                            Target: <strong id="scanTargetDisplay"></strong>
+                        </div>
+                        <button id="stopScanBtn" class="btn btn-danger" style="display: none; margin-left: auto;">
+                            <i class="fas fa-stop"></i> Stop Scan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scan Progress Section -->
+                <div id="scanProgressSection" class="scan-progress-section" style="display: none;">
+                    <div class="progress-header">
+                        <span class="progress-label">
+                            <i class="fas fa-cog fa-spin"></i>
+                            Running: <strong id="currentToolName">-</strong>
+                        </span>
+                        <span class="progress-count" id="progressCount">0 / 0 tools</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="scanProgressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Terminal Output Section -->
+                <div id="terminalOutputSection" class="terminal-output-section" style="display: none;">
+                    <div class="terminal-header">
+                        <h4><i class="fas fa-terminal"></i> Terminal Output</h4>
+                        <button id="toggleTerminal" class="btn btn-small btn-secondary">
+                            <i class="fas fa-chevron-down"></i> Hide
+                        </button>
+                    </div>
+                    <div id="terminalOutputContainer" class="terminal-output-container">
+                        <pre id="terminalOutput" class="terminal-output"></pre>
+                    </div>
+                </div>
+
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-label">Total Subdomains</span>
+                        <span class="stat-value" id="subdomainCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">With IP</span>
+                        <span class="stat-value" id="withIpCount">0</span>
+                    </div>
+                </div>
+
+                <div class="filters-card">
+                    <div class="filters-header">
+                        <h3>Filters</h3>
+                        <button id="clearFilters" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label for="searchFilter">Search:</label>
+                            <input type="text" id="searchFilter" placeholder="Search subdomains...">
+                        </div>
+                        <div class="filter-group">
+                        </div>
+                        <div class="filter-group">
+                            <label for="includeFilter">Include:</label>
+                            <input type="text" id="includeFilter" placeholder="e.g., nginx, 200">
+                        </div>
+                        <div class="filter-group">
+                            <label for="excludeFilter">Exclude:</label>
+                            <input type="text" id="excludeFilter" placeholder="e.g., cloudflare">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>Subdomains</h3>
+                        <div class="table-controls">
+                            <span id="filteredCount" class="filtered-count">Showing 0 of 0</span>
+                            <div id="bulkActionsResults" class="bulk-actions" style="display: none;">
+                                <span id="selectedCountResults" class="selected-count">0 selected</span>
+                                <button id="bulkDeleteResults" class="btn btn-small btn-danger">
+                                    <i class="fas fa-trash"></i> Delete Selected
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-cell">
+                                        <input type="checkbox" id="selectAllResults" title="Select all">
+                                    </th>
+                                    <th>SubDomain Name</th>
+                                    <th>Canonical Names</th>
+                                    <th>Size</th>
+                                    <th>Is Virtual Host</th>
+                                    <th>Tool</th>
+                                    <th>URI</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="subdomainsTableBody">
+                                <tr>
+                                    <td colspan="8" class="empty-state">Waiting for results...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="settingsView" class="view-section">
+                <div class="view-content">
+                    <!-- Settings Import/Export Header -->
+                    <div class="settings-card" style="margin-bottom: 20px;">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-cog"></i> Settings Management</h3>
+                            <div class="settings-actions">
+                                <button id="importSettings" class="btn btn-small btn-primary">
+                                    <i class="fas fa-upload"></i> Import Settings
+                                </button>
+                                <button id="exportSettings" class="btn btn-small btn-secondary">
+                                    <i class="fas fa-download"></i> Export Settings
+                                </button>
+                            </div>
+                        </div>
+                        <p class="settings-description">Import or export your complete configuration (tools.yaml and API keys) as YAML files.</p>
+                        <input type="file" id="importSettingsFile" accept=".yaml,.yml" style="display: none;">
+                    </div>
+                    
+                    <!-- Individual Tools -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-tools"></i> Individual Tools</h3>
+                            <button id="addNewIndividualTool" class="btn btn-small btn-primary">
+                                <i class="fas fa-plus"></i> Add Tool
+                            </button>
+                        </div>
+                        <p class="settings-description">CLI and API tools that run individually to discover subdomains</p>
+                        
+                        <div class="tool-config-table">
+                            <table class="tools-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tool</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="individualToolsTableBody">
+                                    <tr>
+                                        <td colspan="4" class="empty-state">Loading tools...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Pipelines -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-stream"></i> Pipelines</h3>
+                            <button id="addNewPipelineTool" class="btn btn-small btn-primary">
+                                <i class="fas fa-plus"></i> Add Pipeline
+                            </button>
+                        </div>
+                        <p class="settings-description">Chained command pipelines that run multiple tools in sequence. Run after individual tools complete.</p>
+                        
+                        <div class="tool-config-table">
+                            <table class="tools-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tool</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pipelinesTableBody">
+                                    <tr>
+                                        <td colspan="4" class="empty-state">Loading tools...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- API Keys Section -->
+                    <div class="settings-card">
+                        <h3><i class="fas fa-key"></i> API Keys</h3>
+                        
+                        <div id="apiKeysContainer" class="api-keys-list">
+                            <p class="empty-state">Loading API keys...</p>
+                        </div>
+                    </div>
+
+                    <!-- Wordlists Section -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-list"></i> Wordlist Files</h3>
+                            <button id="addWordlist" class="btn btn-small btn-primary">
+                                <i class="fas fa-plus"></i> Add Wordlist
+                            </button>
+                        </div>
+                        <p class="settings-description">Manage wordlist files that can be used in tool configurations. Use placeholders like <code>{wordlist_name}</code> in tool args.</p>
+                        
+                        <div id="wordlistsContainer" class="wordlists-list">
+                            <p class="empty-state">Loading wordlists...</p>
+                        </div>
+                    </div>
+
+                    <!-- Input Files Section -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-file-upload"></i> Input Files</h3>
+                            <button id="addInputFile" class="btn btn-small btn-primary">
+                                <i class="fas fa-plus"></i> Add Input File
+                            </button>
+                        </div>
+                        <p class="settings-description">Manage input files that can be used in tool configurations. Use placeholders like <code>{input_file_name}</code> in tool args.</p>
+                        
+                        <div id="inputFilesContainer" class="wordlists-list">
+                            <p class="empty-state">Loading input files...</p>
+                        </div>
+                    </div>
+
+                    <!-- Full YAML Configuration -->
+                    <div class="settings-card">
+                        <div class="settings-card-header">
+                            <h3><i class="fas fa-file-code"></i> Full Configuration (tools.yaml)</h3>
+                            <div class="yaml-actions">
+                                <span id="yamlSyncStatus" class="sync-status"></span>
+                                <button id="saveFullYaml" class="btn btn-small btn-primary">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                        <p class="settings-description">Edit the complete configuration file. Changes sync with the tool table above.</p>
+                        
+                        <textarea id="fullYamlEditor" class="yaml-editor full-yaml" rows="30" spellcheck="false"></textarea>
+                        
+                        <div class="yaml-help">
+                            <p><strong>Placeholders:</strong> <code>{domain}</code> - target domain, <code>{api_key}</code> - API key from settings, <code>{input_file}</code> - temp file with input</p>
+                        </div>
+                    </div>
+
+                    <div class="settings-card danger-zone">
+                        <h3>Danger Zone</h3>
+                        
+                        <div class="danger-action">
+                            <div class="danger-info">
+                                <h4>Clear All Data</h4>
+                            </div>
+                            <button id="clearDatabase" class="btn btn-danger">
+                                <i class="fas fa-trash-alt"></i> Clear Database
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- All Subdomains View -->
+            <section id="subdomainsView" class="view-section">
+                <div class="filters-card">
+                    <div class="filters-header">
+                        <h3>Filters</h3>
+                        <button id="clearAllSubdomainsFilters" class="btn btn-small btn-secondary">Clear All</button>
+                    </div>
+                    <div class="filters-grid">
+                        <div class="filter-group">
+                            <label for="allSubdomainsSearch">Search:</label>
+                            <input type="text" id="allSubdomainsSearch" placeholder="Search subdomains...">
+                        </div>
+                        <div class="filter-group">
+                            <label for="allProjectFilter">Project:</label>
+                            <select id="allProjectFilter">
+                                <option value="">All Projects</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="allTargetFilter">Target Domain:</label>
+                            <input type="text" id="allTargetFilter" placeholder="Filter by target...">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3>All Subdomains</h3>
+                        <div class="table-controls">
+                            <div class="pagination-controls">
+                                <label for="allSubdomainsLimit">Items per page:</label>
+                                <select id="allSubdomainsLimit" class="limit-selector">
+                                    <option value="100">100</option>
+                                    <option value="500">500</option>
+                                    <option value="1000">1000</option>
+                                    <option value="2500">2500</option>
+                                    <option value="5000">5000</option>
+                                </select>
+                            </div>
+                            <span id="allSubdomainsCount" class="filtered-count">Showing 0 of 0</span>
+                            <div id="bulkActionsAll" class="bulk-actions" style="display: none;">
+                                <span id="selectedCountAll" class="selected-count">0 selected</span>
+                                <button id="exportSelectedAll" class="btn btn-small btn-secondary">
+                                    <i class="fas fa-download"></i> Export
+                                </button>
+                                <button id="bulkDeleteAll" class="btn btn-small btn-danger">
+                                    <i class="fas fa-trash"></i> Delete Selected
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="subdomains-table">
+                            <thead>
+                                <tr>
+                                    <th class="checkbox-cell">
+                                        <input type="checkbox" id="selectAllSubdomains" title="Select all">
+                                    </th>
+                                    <th>SubDomain Name</th>
+                                    <th>Project</th>
+                                    <th>Target Domain</th>
+                                    <th>Discovered</th>
+                                    <th>Tool</th>
+                                    <th>URI</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allSubdomainsTableBody">
+                                <tr>
+                                    <td colspan="8" class="empty-state">No subdomains found</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="allSubdomainsPagination" class="pagination-container"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="newProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Project</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="createProjectForm">
+                <div class="form-group">
+                    <label for="projectName">Project Name:</label>
+                    <input type="text" id="projectName" name="name" required placeholder="e.g., Client ABC">
+                </div>
+                <div class="form-group">
+                    <label for="projectDescription">Description (optional):</label>
+                    <textarea id="projectDescription" name="description" rows="3" placeholder="Project description"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Project</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="startScanModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Start New Scan</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="startScanForm">
+                <div class="form-group">
+                    <label for="targetDomain">Target Domain:</label>
+                    <input type="text" id="targetDomain" name="target_domain" required placeholder="e.g., example.com">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Scan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="startScanWithTargetModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="startScanModalTitle">Start Scan for <span id="startScanProjectName"></span></h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="startScanWithTargetForm">
+                <input type="hidden" id="startScanProjectId">
+                <div class="form-group">
+                    <label>Target Selection:</label>
+                    <div class="target-selection-tabs">
+                        <button type="button" class="target-tab-btn active" data-tab="new" onclick="switchTargetTab('new')">
+                            <i class="fas fa-plus"></i> New Target
+                        </button>
+                        <button type="button" class="target-tab-btn" data-tab="existing" onclick="switchTargetTab('existing')">
+                            <i class="fas fa-list"></i> Existing Target
+                        </button>
+                    </div>
+                </div>
+                <div id="newTargetPanel" class="target-panel active">
+                    <div class="form-group">
+                        <label for="newTargetDomain">Target Domain:</label>
+                        <input type="text" id="newTargetDomain" name="target_domain" required placeholder="e.g., example.com">
+                    </div>
+                </div>
+                <div id="existingTargetPanel" class="target-panel">
+                    <div class="form-group">
+                        <label for="existingTargetDomain">Select Target:</label>
+                        <select id="existingTargetDomain" name="target_domain" required>
+                            <option value="">Loading targets...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Scan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tool Editor Modal -->
+    <div id="toolEditorModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="toolEditorTitle">Edit Tool</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="toolEditorForm">
+                <input type="hidden" id="toolEditorName">
+                <div class="form-group">
+                    <label for="toolEditorYaml">Tool Configuration (YAML):</label>
+                    <textarea id="toolEditorYaml" class="yaml-editor" rows="20" spellcheck="false"></textarea>
+                </div>
+                <div class="yaml-help">
+                    <p><strong>Placeholders:</strong> <code>{domain}</code> - target domain, <code>{api_key}</code> - API key from settings, <code>{input_file}</code> - temp file with input data</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="button" id="toolEditorDelete" class="btn btn-danger" style="margin-right: auto;">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <button type="submit" class="btn btn-primary">Save Tool</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Wordlist Modal -->
+    <div id="wordlistModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="wordlistModalTitle">Add Wordlist</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="wordlistForm">
+                <input type="hidden" id="wordlistEditName">
+                <div class="form-group">
+                    <label for="wordlistName">Wordlist Name:</label>
+                    <input type="text" id="wordlistName" name="name" required placeholder="e.g., common, subdomains" pattern="[a-z0-9_]+" title="Only lowercase letters, numbers, and underscores">
+                    <small class="form-help">This will be used as the placeholder name: <code>{wordlist_name}</code></small>
+                </div>
+                <div class="form-group">
+                    <label for="wordlistPath">File Path:</label>
+                    <input type="text" id="wordlistPath" name="path" required placeholder="e.g., /opt/wordlists/common.txt">
+                    <small class="form-help">Full path to the wordlist file on the system</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Wordlist</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Input File Modal -->
+    <div id="inputFileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="inputFileModalTitle">Add Input File</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="inputFileForm">
+                <input type="hidden" id="inputFileEditName">
+                <div class="form-group">
+                    <label for="inputFileName">Input File Name:</label>
+                    <input type="text" id="inputFileName" name="name" required placeholder="e.g., domains, targets" pattern="[a-z0-9_]+" title="Only lowercase letters, numbers, and underscores">
+                    <small class="form-help">This will be used as the placeholder name: <code>{input_file_name}</code></small>
+                </div>
+                <div class="form-group">
+                    <label for="inputFilePath">File Path:</label>
+                    <input type="text" id="inputFilePath" name="path" required placeholder="e.g., /opt/input/domains.txt">
+                    <small class="form-help">Full path to the input file on the system</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Input File</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add New Tool Modal -->
+    <div id="addToolModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Tool</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="addToolForm">
+                <div class="form-group">
+                    <label for="newToolName">Tool Name:</label>
+                    <input type="text" id="newToolName" required placeholder="e.g., amass" pattern="[a-z0-9_-]+">
+                    <small>Lowercase letters, numbers, hyphens and underscores only</small>
+                </div>
+                <div class="form-group">
+                    <label for="newToolType">Tool Type:</label>
+                    <select id="newToolType" required>
+                        <option value="cli">CLI (Command Line)</option>
+                        <option value="api">API (HTTP Request)</option>
+                        <option value="pipeline">Pipeline (Chained Commands)</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary modal-cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Tool</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
