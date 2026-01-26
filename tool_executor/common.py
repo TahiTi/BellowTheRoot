@@ -5,6 +5,7 @@ Shared functions for config, validation, and database operations
 import os
 import re
 import yaml
+import threading
 from datetime import datetime, timezone
 from core.database import SessionLocal
 from core.database import Subdomain, ScanSubdomain, Setting
@@ -139,7 +140,45 @@ def save_subdomain(db, subdomain, target_domain, scan_id, tool_name=None):
     )
     res = db.execute(link_stmt)
     
-    return res.rowcount and res.rowcount > 0
+    # Trigger automatic probing in background thread
+    is_new_subdomain = res.rowcount and res.rowcount > 0
+    if is_new_subdomain:
+        _trigger_auto_probe(subdomain, subdomain_id)
+    
+    return is_new_subdomain
+
+
+def _trigger_auto_probe(subdomain_name: str, subdomain_id: int):
+    """Trigger automatic probing for a newly discovered subdomain"""
+    def probe_in_background():
+        try:
+            from core.probe_service import get_probe_service
+            from core.database import SessionLocal
+            from core.database import Subdomain
+            
+            probe_service = get_probe_service()
+            result = probe_service.probe_subdomain(subdomain_name)
+            
+            # Update database with probe result
+            db = SessionLocal()
+            try:
+                subdomain = db.query(Subdomain).filter(Subdomain.id == subdomain_id).first()
+                if subdomain:
+                    subdomain.is_online = result['status']
+                    subdomain.probe_http_status = result.get('http_status_code')
+                    subdomain.probe_https_status = result.get('https_status_code')
+                    db.commit()
+            except Exception as e:
+                db.rollback()
+                print(f"[probe] Error updating probe result for {subdomain_name}: {str(e)}")
+            finally:
+                db.close()
+        except Exception as e:
+            print(f"[probe] Error probing {subdomain_name}: {str(e)}")
+    
+    # Start probing in background thread
+    thread = threading.Thread(target=probe_in_background, daemon=True)
+    thread.start()
 
 
 # ============================================

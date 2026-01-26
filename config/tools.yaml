@@ -150,9 +150,10 @@ tools:
       field: url
       regex: https?://([^/:?#]+)
   bruteforce_pipeline:
-    enabled: false
+    enabled: true
     type: pipeline
     description: Subdomain bruteforce using alterx permutations + dnsx resolution
+    input: scan_subdomains
     steps:
     - name: alterx
       command: alterx

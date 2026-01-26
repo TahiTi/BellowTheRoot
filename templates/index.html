@@ -205,6 +205,45 @@
                                 <option value="">All Targets</option>
                             </select>
                         </div>
+                        <div class="filter-group">
+                            <label for="projectStatusFilter">Status:</label>
+                            <select id="projectStatusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="online_http">Online (HTTP)</option>
+                                <option value="online_https">Online (HTTPS)</option>
+                                <option value="online_both">Online (Both)</option>
+                                <option value="offline">Offline</option>
+                                <option value="dns_only">DNS Only</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="projectProtocolFilter">Protocol:</label>
+                            <select id="projectProtocolFilter">
+                                <option value="">All Protocols</option>
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="projectResponseCodeFilter">Response Code:</label>
+                            <select id="projectResponseCodeFilter">
+                                <option value="">All Codes</option>
+                                <option value="200">200 - OK</option>
+                                <option value="201">201 - Created</option>
+                                <option value="301">301 - Moved Permanently</option>
+                                <option value="302">302 - Found</option>
+                                <option value="304">304 - Not Modified</option>
+                                <option value="400">400 - Bad Request</option>
+                                <option value="401">401 - Unauthorized</option>
+                                <option value="403">403 - Forbidden</option>
+                                <option value="404">404 - Not Found</option>
+                                <option value="500">500 - Internal Server Error</option>
+                                <option value="502">502 - Bad Gateway</option>
+                                <option value="503">503 - Service Unavailable</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -225,12 +264,24 @@
                             <span id="projectSubdomainsCount" class="filtered-count">Showing 0 of 0</span>
                             <div id="bulkActionsProject" class="bulk-actions" style="display: none;">
                                 <span id="selectedCountProject" class="selected-count">0 selected</span>
+                                <button id="bulkProbeProject" class="btn btn-small btn-primary">
+                                    <i class="fas fa-network-wired"></i> Probe Selected
+                                </button>
                                 <button id="exportSelectedProject" class="btn btn-small btn-secondary">
                                     <i class="fas fa-download"></i> Export
                                 </button>
                                 <button id="bulkDeleteProject" class="btn btn-small btn-danger">
                                     <i class="fas fa-trash"></i> Delete Selected
                                 </button>
+                            </div>
+                            <div id="probeProgressProject" class="probe-progress" style="display: none;">
+                                <div class="probe-progress-info">
+                                    <span class="probe-progress-label">Probing subdomains...</span>
+                                    <span class="probe-progress-count" id="probeProgressCountProject">0 / 0</span>
+                                </div>
+                                <div class="probe-progress-bar-container">
+                                    <div class="probe-progress-bar" id="probeProgressBarProject" style="width: 0%"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -243,6 +294,7 @@
                                     </th>
                                     <th>SubDomain Name</th>
                                     <th>Target Domain</th>
+                                    <th>Status</th>
                                     <th>Discovered</th>
                                     <th>Tool</th>
                                     <th>URI</th>
@@ -251,7 +303,7 @@
                             </thead>
                             <tbody id="projectSubdomainsTableBody">
                                 <tr>
-                                    <td colspan="7" class="empty-state">No subdomains found</td>
+                                    <td colspan="8" class="empty-state">No subdomains found</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -339,6 +391,7 @@
                                         </th>
                                         <th>SubDomain Name</th>
                                         <th>Target Domain</th>
+                                        <th>Status</th>
                                         <th>Discovered</th>
                                         <th>Tool</th>
                                         <th>URI</th>
@@ -347,7 +400,7 @@
                                 </thead>
                                 <tbody id="targetSubdomainsTableBody">
                                     <tr>
-                                        <td colspan="7" class="empty-state">Loading subdomains...</td>
+                                        <td colspan="8" class="empty-state">Loading subdomains...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -481,9 +534,21 @@
                             <span id="filteredCount" class="filtered-count">Showing 0 of 0</span>
                             <div id="bulkActionsResults" class="bulk-actions" style="display: none;">
                                 <span id="selectedCountResults" class="selected-count">0 selected</span>
+                                <button id="bulkProbeResults" class="btn btn-small btn-primary">
+                                    <i class="fas fa-network-wired"></i> Probe Selected
+                                </button>
                                 <button id="bulkDeleteResults" class="btn btn-small btn-danger">
                                     <i class="fas fa-trash"></i> Delete Selected
                                 </button>
+                            </div>
+                            <div id="probeProgressResults" class="probe-progress" style="display: none;">
+                                <div class="probe-progress-info">
+                                    <span class="probe-progress-label">Probing subdomains...</span>
+                                    <span class="probe-progress-count" id="probeProgressCountResults">0 / 0</span>
+                                </div>
+                                <div class="probe-progress-bar-container">
+                                    <div class="probe-progress-bar" id="probeProgressBarResults" style="width: 0%"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -495,6 +560,7 @@
                                         <input type="checkbox" id="selectAllResults" title="Select all">
                                     </th>
                                     <th>SubDomain Name</th>
+                                    <th>Status</th>
                                     <th>Canonical Names</th>
                                     <th>Size</th>
                                     <th>Is Virtual Host</th>
@@ -505,7 +571,7 @@
                             </thead>
                             <tbody id="subdomainsTableBody">
                                 <tr>
-                                    <td colspan="8" class="empty-state">Waiting for results...</td>
+                                    <td colspan="9" class="empty-state">Waiting for results...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -687,6 +753,45 @@
                             <label for="allTargetFilter">Target Domain:</label>
                             <input type="text" id="allTargetFilter" placeholder="Filter by target...">
                         </div>
+                        <div class="filter-group">
+                            <label for="allStatusFilter">Status:</label>
+                            <select id="allStatusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="online_http">Online (HTTP)</option>
+                                <option value="online_https">Online (HTTPS)</option>
+                                <option value="online_both">Online (Both)</option>
+                                <option value="offline">Offline</option>
+                                <option value="dns_only">DNS Only</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="allProtocolFilter">Protocol:</label>
+                            <select id="allProtocolFilter">
+                                <option value="">All Protocols</option>
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="allResponseCodeFilter">Response Code:</label>
+                            <select id="allResponseCodeFilter">
+                                <option value="">All Codes</option>
+                                <option value="200">200 - OK</option>
+                                <option value="201">201 - Created</option>
+                                <option value="301">301 - Moved Permanently</option>
+                                <option value="302">302 - Found</option>
+                                <option value="304">304 - Not Modified</option>
+                                <option value="400">400 - Bad Request</option>
+                                <option value="401">401 - Unauthorized</option>
+                                <option value="403">403 - Forbidden</option>
+                                <option value="404">404 - Not Found</option>
+                                <option value="500">500 - Internal Server Error</option>
+                                <option value="502">502 - Bad Gateway</option>
+                                <option value="503">503 - Service Unavailable</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -707,12 +812,24 @@
                             <span id="allSubdomainsCount" class="filtered-count">Showing 0 of 0</span>
                             <div id="bulkActionsAll" class="bulk-actions" style="display: none;">
                                 <span id="selectedCountAll" class="selected-count">0 selected</span>
+                                <button id="bulkProbeAll" class="btn btn-small btn-primary">
+                                    <i class="fas fa-network-wired"></i> Probe Selected
+                                </button>
                                 <button id="exportSelectedAll" class="btn btn-small btn-secondary">
                                     <i class="fas fa-download"></i> Export
                                 </button>
                                 <button id="bulkDeleteAll" class="btn btn-small btn-danger">
                                     <i class="fas fa-trash"></i> Delete Selected
                                 </button>
+                            </div>
+                            <div id="probeProgressAll" class="probe-progress" style="display: none;">
+                                <div class="probe-progress-info">
+                                    <span class="probe-progress-label">Probing subdomains...</span>
+                                    <span class="probe-progress-count" id="probeProgressCountAll">0 / 0</span>
+                                </div>
+                                <div class="probe-progress-bar-container">
+                                    <div class="probe-progress-bar" id="probeProgressBarAll" style="width: 0%"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -726,6 +843,7 @@
                                     <th>SubDomain Name</th>
                                     <th>Project</th>
                                     <th>Target Domain</th>
+                                    <th>Status</th>
                                     <th>Discovered</th>
                                     <th>Tool</th>
                                     <th>URI</th>
@@ -734,7 +852,7 @@
                             </thead>
                             <tbody id="allSubdomainsTableBody">
                                 <tr>
-                                    <td colspan="8" class="empty-state">No subdomains found</td>
+                                    <td colspan="9" class="empty-state">No subdomains found</td>
                                 </tr>
                             </tbody>
                         </table>

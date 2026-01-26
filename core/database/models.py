@@ -96,6 +96,11 @@ class Subdomain(Base):
     canonical_names = Column(Text, nullable=True)  # CNAME records
     is_virtual_host = Column(String(10), nullable=True, default='false')  # true/false
     uri = Column(String(500), nullable=True)  # Full URI
+    
+    # Probing status
+    is_online = Column(String(50), nullable=True)  # online_http, online_https, online_both, offline, dns_only, pending
+    probe_http_status = Column(Integer, nullable=True)  # HTTP status code from probing
+    probe_https_status = Column(Integer, nullable=True)  # HTTPS status code from probing
 
     # Relationship
     scan_subdomains = relationship("ScanSubdomain", back_populates="subdomain", cascade="all, delete-orphan")
@@ -111,7 +116,10 @@ class Subdomain(Base):
             'headers': self.headers,
             'canonical_names': self.canonical_names,
             'is_virtual_host': self.is_virtual_host,
-            'uri': self.uri or (f"https://{self.subdomain}" if self.subdomain else None)
+            'uri': self.uri or (f"https://{self.subdomain}" if self.subdomain else None),
+            'is_online': self.is_online,
+            'probe_http_status': self.probe_http_status,
+            'probe_https_status': self.probe_https_status
         }
 
 
@@ -148,7 +156,10 @@ class ScanSubdomain(Base):
             'headers': self.subdomain.headers,
             'canonical_names': self.subdomain.canonical_names,
             'is_virtual_host': self.subdomain.is_virtual_host,
-            'uri': self.subdomain.uri or (f"https://{self.subdomain.subdomain}" if self.subdomain.subdomain else None)
+            'uri': self.subdomain.uri or (f"https://{self.subdomain.subdomain}" if self.subdomain.subdomain else None),
+            'is_online': self.subdomain.is_online,
+            'probe_http_status': self.subdomain.probe_http_status,
+            'probe_https_status': self.subdomain.probe_https_status
         }
 
 

@@ -7,12 +7,16 @@ from tool_executor import load_tools_config, save_tools_config, get_tool_config,
 from tool_executor.common import format_args_for_display
 from core.terminal_output import get_output
 from core.scan_control import request_stop
+from core.probe_service import get_probe_service
+from core.probe_progress import get_progress_tracker
 from datetime import datetime, timezone
 from sqlalchemy import func, text, or_
 from sqlalchemy.orm import selectinload, joinedload
 import json
 import time
 import yaml
+import threading
+import uuid
 
 app = Flask(__name__)
 app.config.from_object('config.config.Config')
@@ -196,6 +200,9 @@ def get_project_subdomains(project_id):
         limit = request.args.get('limit', 100, type=int)
         search = request.args.get('search', '', type=str).strip()
         target_filter = request.args.get('target', '', type=str)
+        status_filter = request.args.get('status', '', type=str).strip()
+        protocol_filter = request.args.get('protocol', '', type=str).strip()
+        response_code_filter = request.args.get('response_code', '', type=str).strip()
         
         # Cap limit to prevent abuse (allow up to 5000)
         limit = min(limit, 5000)
@@ -280,6 +287,39 @@ def get_project_subdomains(project_id):
         
         if target_filter:
             base_query = base_query.filter(Scan.target_domain == target_filter)
+        
+        # Apply status filter
+        if status_filter:
+            base_query = base_query.filter(Subdomain.is_online == status_filter)
+        
+        # Apply protocol filter
+        if protocol_filter:
+            if protocol_filter == 'http':
+                # HTTP - has HTTP status (regardless of HTTPS)
+                base_query = base_query.filter(Subdomain.probe_http_status.isnot(None))
+            elif protocol_filter == 'https':
+                # HTTPS - has HTTPS status (regardless of HTTP)
+                base_query = base_query.filter(Subdomain.probe_https_status.isnot(None))
+            elif protocol_filter == 'both':
+                # Both HTTP and HTTPS
+                base_query = base_query.filter(
+                    Subdomain.probe_http_status.isnot(None),
+                    Subdomain.probe_https_status.isnot(None)
+                )
+        
+        # Apply response code filter
+        if response_code_filter:
+            try:
+                code = int(response_code_filter)
+                # Match either HTTP or HTTPS status code
+                base_query = base_query.filter(
+                    or_(
+                        Subdomain.probe_http_status == code,
+                        Subdomain.probe_https_status == code
+                    )
+                )
+            except ValueError:
+                pass  # Invalid response code, ignore
         
         # Get total count (only if using offset pagination)
         total = None
@@ -942,6 +982,9 @@ def get_all_subdomains():
         search = request.args.get('search', '', type=str).strip()
         project_filter = request.args.get('project', '', type=str)
         target_filter = request.args.get('target', '', type=str)
+        status_filter = request.args.get('status', '', type=str).strip()
+        protocol_filter = request.args.get('protocol', '', type=str).strip()
+        response_code_filter = request.args.get('response_code', '', type=str).strip()
         
         # Cap limit to prevent abuse (allow up to 5000)
         limit = min(limit, 5000)
@@ -996,6 +1039,39 @@ def get_all_subdomains():
         
         if target_filter:
             base_query = base_query.filter(Scan.target_domain == target_filter)
+        
+        # Apply status filter
+        if status_filter:
+            base_query = base_query.filter(Subdomain.is_online == status_filter)
+        
+        # Apply protocol filter
+        if protocol_filter:
+            if protocol_filter == 'http':
+                # HTTP - has HTTP status (regardless of HTTPS)
+                base_query = base_query.filter(Subdomain.probe_http_status.isnot(None))
+            elif protocol_filter == 'https':
+                # HTTPS - has HTTPS status (regardless of HTTP)
+                base_query = base_query.filter(Subdomain.probe_https_status.isnot(None))
+            elif protocol_filter == 'both':
+                # Both HTTP and HTTPS
+                base_query = base_query.filter(
+                    Subdomain.probe_http_status.isnot(None),
+                    Subdomain.probe_https_status.isnot(None)
+                )
+        
+        # Apply response code filter
+        if response_code_filter:
+            try:
+                code = int(response_code_filter)
+                # Match either HTTP or HTTPS status code
+                base_query = base_query.filter(
+                    or_(
+                        Subdomain.probe_http_status == code,
+                        Subdomain.probe_https_status == code
+                    )
+                )
+            except ValueError:
+                pass  # Invalid response code, ignore
         
         # Get total count (only if using offset pagination)
         total = None
@@ -1178,6 +1254,200 @@ def export_subdomains():
         return jsonify({'error': str(e)}), 500
     finally:
         db.close()
+
+@app.route('/api/subdomains/<int:subdomain_id>/probe', methods=['POST'])
+def probe_subdomain(subdomain_id):
+    """Probe a single subdomain"""
+    db = get_db_session()
+    try:
+        subdomain = db.query(Subdomain).filter(Subdomain.id == subdomain_id).first()
+        
+        if not subdomain:
+            return jsonify({'error': 'Subdomain not found'}), 404
+        
+        # Probe the subdomain
+        probe_service = get_probe_service()
+        result = probe_service.probe_subdomain(subdomain.subdomain)
+        
+        # Update database
+        subdomain.is_online = result['status']
+        subdomain.probe_http_status = result.get('http_status_code')
+        subdomain.probe_https_status = result.get('https_status_code')
+        db.commit()
+        
+        return jsonify({
+            'message': 'Subdomain probed successfully',
+            'subdomain_id': subdomain_id,
+            'result': result
+        }), 200
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/subdomains/probe', methods=['POST'])
+def bulk_probe_subdomains():
+    """Probe multiple subdomains"""
+    data = request.get_json()
+    
+    if not data or 'subdomain_ids' not in data:
+        return jsonify({'error': 'subdomain_ids array is required'}), 400
+    
+    subdomain_ids = data['subdomain_ids']
+    
+    if not isinstance(subdomain_ids, list) or len(subdomain_ids) == 0:
+        return jsonify({'error': 'subdomain_ids must be a non-empty array'}), 400
+    
+    # Limit batch size to prevent abuse
+    if len(subdomain_ids) > 1000:
+        return jsonify({'error': 'Maximum 1000 subdomains per batch'}), 400
+    
+    db = get_db_session()
+    try:
+        subdomains = db.query(Subdomain).filter(Subdomain.id.in_(subdomain_ids)).all()
+        
+        if not subdomains:
+            return jsonify({'error': 'No subdomains found'}), 404
+        
+        total = len(subdomains)
+        job_id = str(uuid.uuid4())
+        progress_tracker = get_progress_tracker()
+        progress_tracker.create_job(job_id, total)
+        
+        # Always probe in background to show progress
+        def probe_background():
+            db_bg = get_db_session()
+            try:
+                probe_service = get_probe_service()
+                subdomain_list = [s.subdomain for s in subdomains]
+                
+                # Progress callback
+                def update_progress(completed, total):
+                    progress_tracker.update_progress(job_id, completed)
+                
+                results = probe_service.probe_subdomain_batch(subdomain_list, progress_callback=update_progress)
+                
+                # Update database
+                for subdomain in subdomains:
+                    if subdomain.subdomain in results:
+                        result = results[subdomain.subdomain]
+                        subdomain.is_online = result['status']
+                        subdomain.probe_http_status = result.get('http_status_code')
+                        subdomain.probe_https_status = result.get('https_status_code')
+                db_bg.commit()
+                
+                progress_tracker.complete_job(job_id)
+            except Exception as e:
+                db_bg.rollback()
+                progress_tracker.fail_job(job_id)
+                print(f"Error in background probe: {str(e)}")
+            finally:
+                db_bg.close()
+        
+        thread = threading.Thread(target=probe_background, daemon=True)
+        thread.start()
+        
+        return jsonify({
+            'message': f'Probing {len(subdomains)} subdomains',
+            'subdomain_count': len(subdomains),
+            'job_id': job_id
+        }), 202
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/projects/<int:project_id>/subdomains/probe', methods=['POST'])
+def probe_project_subdomains(project_id):
+    """Probe all subdomains in a project"""
+    db = get_db_session()
+    try:
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            return jsonify({'error': 'Project not found'}), 404
+        
+        # Get all subdomains for this project
+        scan_ids = [scan.id for scan in project.scans]
+        if not scan_ids:
+            return jsonify({'error': 'No scans found for this project'}), 404
+        
+        subdomain_ids = db.query(ScanSubdomain.subdomain_id).filter(
+            ScanSubdomain.scan_id.in_(scan_ids)
+        ).distinct().all()
+        subdomain_ids = [s[0] for s in subdomain_ids]
+        
+        if not subdomain_ids:
+            return jsonify({'error': 'No subdomains found for this project'}), 404
+        
+        subdomains = db.query(Subdomain).filter(Subdomain.id.in_(subdomain_ids)).all()
+        
+        total = len(subdomains)
+        job_id = str(uuid.uuid4())
+        progress_tracker = get_progress_tracker()
+        progress_tracker.create_job(job_id, total)
+        
+        # Always probe in background for project-level operations
+        def probe_background():
+            db_bg = get_db_session()
+            try:
+                probe_service = get_probe_service()
+                subdomain_list = [s.subdomain for s in subdomains]
+                
+                # Progress callback
+                def update_progress(completed, total):
+                    progress_tracker.update_progress(job_id, completed)
+                
+                results = probe_service.probe_subdomain_batch(subdomain_list, progress_callback=update_progress)
+                
+                # Update database
+                for subdomain in subdomains:
+                    if subdomain.subdomain in results:
+                        result = results[subdomain.subdomain]
+                        subdomain.is_online = result['status']
+                        subdomain.probe_http_status = result.get('http_status_code')
+                        subdomain.probe_https_status = result.get('https_status_code')
+                db_bg.commit()
+                
+                progress_tracker.complete_job(job_id)
+            except Exception as e:
+                db_bg.rollback()
+                progress_tracker.fail_job(job_id)
+                print(f"Error in background probe: {str(e)}")
+            finally:
+                db_bg.close()
+        
+        thread = threading.Thread(target=probe_background, daemon=True)
+        thread.start()
+        
+        return jsonify({
+            'message': f'Probing {len(subdomains)} subdomains',
+            'subdomain_count': len(subdomains),
+            'job_id': job_id
+        }), 202
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+@app.route('/api/probe/progress/<job_id>', methods=['GET'])
+def get_probe_progress(job_id):
+    """Get progress for a probe job"""
+    progress_tracker = get_progress_tracker()
+    progress = progress_tracker.get_progress(job_id)
+    
+    if not progress:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    return jsonify({
+        'job_id': job_id,
+        'total': progress['total'],
+        'completed': progress['completed'],
+        'status': progress['status'],
+        'progress_percent': round((progress['completed'] / progress['total']) * 100, 1) if progress['total'] > 0 else 0
+    }), 200
 
 @app.route('/api/settings/export', methods=['GET'])
 def export_settings():
