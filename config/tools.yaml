@@ -10,7 +10,7 @@ tools:
     output: lines
     path_setting: tool_subfinder_path
   assetfinder:
-    enabled: false
+    enabled: true
     type: cli
     description: Find domains and subdomains related to a given domain
     command: assetfinder
@@ -19,7 +19,7 @@ tools:
     output: lines
     path_setting: tool_assetfinder_path
   sublist3r:
-    enabled: false
+    enabled: true
     type: cli
     description: Subdomains enumeration tool using search engines
     command: sublist3r
@@ -29,7 +29,7 @@ tools:
     output: lines
     path_setting: tool_sublist3r_path
   oneforall:
-    enabled: false
+    enabled: true
     type: cli
     description: Powerful subdomain collection tool
     command: python3 /opt/OneForAll/oneforall.py
@@ -42,7 +42,7 @@ tools:
     csv_column: subdomain
     path_setting: tool_oneforall_path
   crtsh:
-    enabled: false
+    enabled: true
     type: api
     description: Certificate Transparency log search
     method: GET
@@ -115,7 +115,7 @@ tools:
       type: json_path
       path: data[*].id
   wayback:
-    enabled: false
+    enabled: true
     type: api
     description: Wayback Machine archived URLs
     method: GET
@@ -133,7 +133,7 @@ tools:
       skip_first: true
       regex: https?://([^/:?#]+)
   commoncrawl:
-    enabled: false
+    enabled: true
     type: api
     description: CommonCrawl index search
     method: GET
@@ -150,9 +150,10 @@ tools:
       field: url
       regex: https?://([^/:?#]+)
   bruteforce_pipeline:
-    enabled: false
+    enabled: true
     type: pipeline
     description: Subdomain bruteforce using alterx permutations + dnsx resolution
+    input: scan_subdomains
     steps:
     - name: alterx
       command: alterx

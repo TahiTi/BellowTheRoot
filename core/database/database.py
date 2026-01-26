@@ -223,7 +223,10 @@ def _ensure_subdomains_columns():
         ADD COLUMN IF NOT EXISTS headers TEXT,
         ADD COLUMN IF NOT EXISTS canonical_names TEXT,
         ADD COLUMN IF NOT EXISTS is_virtual_host VARCHAR(10) DEFAULT 'false',
-        ADD COLUMN IF NOT EXISTS uri VARCHAR(500);
+        ADD COLUMN IF NOT EXISTS uri VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS is_online VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS probe_http_status INTEGER,
+        ADD COLUMN IF NOT EXISTS probe_https_status INTEGER;
         
         ALTER TABLE scan_subdomains
         ADD COLUMN IF NOT EXISTS tool_name VARCHAR(100);

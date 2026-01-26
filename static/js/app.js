@@ -341,6 +341,9 @@ function setupFilters() {
     document.getElementById('allProjectFilter')?.addEventListener('change', applyAllSubdomainsFilters);
     document.getElementById('allIpFilter')?.addEventListener('input', applyAllSubdomainsFilters);
     document.getElementById('allTargetFilter')?.addEventListener('input', applyAllSubdomainsFilters);
+    document.getElementById('allStatusFilter')?.addEventListener('change', applyAllSubdomainsFilters);
+    document.getElementById('allProtocolFilter')?.addEventListener('change', applyAllSubdomainsFilters);
+    document.getElementById('allResponseCodeFilter')?.addEventListener('change', applyAllSubdomainsFilters);
     document.getElementById('allSubdomainsLimit')?.addEventListener('change', (e) => {
         allSubdomainsPagination.limit = parseInt(e.target.value);
         loadAllSubdomains(1);
@@ -352,6 +355,9 @@ function setupFilters() {
     document.getElementById('projectTargetFilter')?.addEventListener('change', applyProjectSubdomainsFilters);
     document.getElementById('projectWebserverFilter')?.addEventListener('change', applyProjectSubdomainsFilters);
     document.getElementById('projectIpFilter')?.addEventListener('input', applyProjectSubdomainsFilters);
+    document.getElementById('projectStatusFilter')?.addEventListener('change', applyProjectSubdomainsFilters);
+    document.getElementById('projectProtocolFilter')?.addEventListener('change', applyProjectSubdomainsFilters);
+    document.getElementById('projectResponseCodeFilter')?.addEventListener('change', applyProjectSubdomainsFilters);
     document.getElementById('projectSubdomainsLimit')?.addEventListener('change', (e) => {
         projectSubdomainsPagination.limit = parseInt(e.target.value);
         loadProjectData(currentProjectId, 1);
@@ -433,6 +439,11 @@ function setupBulkActions() {
     document.getElementById('bulkDeleteResults')?.addEventListener('click', () => bulkDeleteSubdomains('results'));
     document.getElementById('bulkDeleteAll')?.addEventListener('click', () => bulkDeleteSubdomains('all'));
     document.getElementById('bulkDeleteProject')?.addEventListener('click', () => bulkDeleteSubdomains('project'));
+    
+    // Bulk probe buttons
+    document.getElementById('bulkProbeResults')?.addEventListener('click', () => bulkProbeSubdomains('results'));
+    document.getElementById('bulkProbeAll')?.addEventListener('click', () => bulkProbeSubdomains('all'));
+    document.getElementById('bulkProbeProject')?.addEventListener('click', () => bulkProbeSubdomains('project'));
 }
 
 // API Functions
@@ -789,14 +800,16 @@ function setupBackToProjectButton() {
     }
 }
 
-async function loadProjectData(projectId, page = 1, search = '', targetFilter = '') {
+async function loadProjectData(projectId, page = 1, search = '', targetFilter = '', statusFilter = '', protocolFilter = '', responseCodeFilter = '') {
     try {
         const limit = projectSubdomainsPagination.limit || 100;
         // Load project subdomains from the API with pagination
         let url = `${API_BASE}/projects/${projectId}/subdomains?page=${page}&limit=${limit}`;
         if (search) url += `&search=${encodeURIComponent(search)}`;
         if (targetFilter) url += `&target=${encodeURIComponent(targetFilter)}`;
-        
+        if (statusFilter) url += `&status=${encodeURIComponent(statusFilter)}`;
+        if (protocolFilter) url += `&protocol=${encodeURIComponent(protocolFilter)}`;
+        if (responseCodeFilter) url += `&response_code=${encodeURIComponent(responseCodeFilter)}`;
         
         const data = await apiRequest(url);
         
@@ -923,7 +936,10 @@ function applyProjectSubdomainsFilters() {
     currentSearchTimeout = setTimeout(() => {
         const searchTerm = document.getElementById('projectSubdomainsSearch')?.value || '';
         const targetFilter = document.getElementById('projectTargetFilter')?.value || '';
-        loadProjectData(currentProjectId, 1, searchTerm, targetFilter);
+        const statusFilter = document.getElementById('projectStatusFilter')?.value || '';
+        const protocolFilter = document.getElementById('projectProtocolFilter')?.value || '';
+        const responseCodeFilter = document.getElementById('projectResponseCodeFilter')?.value || '';
+        loadProjectData(currentProjectId, 1, searchTerm, targetFilter, statusFilter, protocolFilter, responseCodeFilter);
     }, 300);
 }
 
@@ -931,13 +947,16 @@ function clearProjectFilters() {
     document.getElementById('projectSubdomainsSearch').value = '';
     document.getElementById('projectTargetFilter').value = '';
     document.getElementById('projectWebserverFilter').value = '';
+    document.getElementById('projectStatusFilter').value = '';
+    document.getElementById('projectProtocolFilter').value = '';
+    document.getElementById('projectResponseCodeFilter').value = '';
     
     // Remove active state from target cards
     document.querySelectorAll('.target-card').forEach(card => {
         card.classList.remove('active');
     });
     
-    loadProjectData(currentProjectId, 1, '', '');
+    loadProjectData(currentProjectId, 1, '', '', '', '', '');
 }
 
 function updateProjectSubdomainsPagination() {
@@ -988,7 +1007,10 @@ function updateProjectSubdomainsPagination() {
 function changeProjectSubdomainsPage(page) {
     const searchTerm = document.getElementById('projectSubdomainsSearch')?.value || '';
     const targetFilter = document.getElementById('projectTargetFilter')?.value || '';
-    loadProjectData(currentProjectId, page, searchTerm, targetFilter);
+    const statusFilter = document.getElementById('projectStatusFilter')?.value || '';
+    const protocolFilter = document.getElementById('projectProtocolFilter')?.value || '';
+    const responseCodeFilter = document.getElementById('projectResponseCodeFilter')?.value || '';
+    loadProjectData(currentProjectId, page, searchTerm, targetFilter, statusFilter, protocolFilter, responseCodeFilter);
 }
 
 function displayProjectSubdomains(subdomains) {
@@ -1005,13 +1027,18 @@ function displayProjectSubdomains(subdomains) {
     }
     
     if (subdomains.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No subdomains found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No subdomains found</td></tr>';
         selectedProjectSubdomains.clear();
         updateBulkActionsUI('project');
         return;
     }
     
-    tbody.innerHTML = subdomains.map(subdomain => `
+    tbody.innerHTML = subdomains.map(subdomain => {
+        // Ensure we have the status codes (handle both camelCase and snake_case)
+        const httpStatus = subdomain.probe_http_status !== undefined ? subdomain.probe_http_status : (subdomain.probeHttpStatus !== undefined ? subdomain.probeHttpStatus : null);
+        const httpsStatus = subdomain.probe_https_status !== undefined ? subdomain.probe_https_status : (subdomain.probeHttpsStatus !== undefined ? subdomain.probeHttpsStatus : null);
+        
+        return `
         <tr data-subdomain-id="${subdomain.id}">
             <td class="checkbox-cell">
                 <input type="checkbox" 
@@ -1021,16 +1048,22 @@ function displayProjectSubdomains(subdomains) {
             </td>
             <td><span class="subdomain-name">${escapeHtml(subdomain.subdomain)}</span></td>
             <td>${escapeHtml(subdomain.target_domain || '-')}</td>
+            <td>${renderStatusBadge(subdomain.is_online, httpStatus, httpsStatus)}</td>
+            <!-- Debug: ${JSON.stringify({is_online: subdomain.is_online, http: subdomain.probe_http_status, https: subdomain.probe_https_status})} -->
             <td>${formatDate(subdomain.discovered_at)}</td>
             <td>${subdomain.tool_name ? `<span class="tool-name-badge">${escapeHtml(subdomain.tool_name)}</span>` : '-'}</td>
             <td><a href="${escapeHtml(subdomain.uri || 'https://' + subdomain.subdomain)}" target="_blank" class="subdomain-uri">View</a></td>
             <td>
+                <button class="btn-icon btn-probe" onclick="probeSubdomain(${subdomain.id}, 'project')" title="Probe subdomain">
+                    <i class="fas fa-network-wired"></i>
+                </button>
                 <button class="btn-icon btn-delete" onclick="deleteSubdomainFromProject(${subdomain.id}, event)" title="Delete subdomain">
                     <i class="fas fa-trash"></i>
                 </button>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
     
     updateBulkActionsUI('project');
 }
@@ -1183,7 +1216,7 @@ function displayTargetSubdomains(subdomains) {
     }
     
     if (subdomains.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No subdomains found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No subdomains found</td></tr>';
         selectedTargetSubdomains.clear();
         updateBulkActionsUI('target');
         return;
@@ -1199,10 +1232,15 @@ function displayTargetSubdomains(subdomains) {
             </td>
             <td><span class="subdomain-name">${escapeHtml(subdomain.subdomain)}</span></td>
             <td>${escapeHtml(subdomain.target_domain || '-')}</td>
+            <td>${renderStatusBadge(subdomain.is_online, subdomain.probe_http_status, subdomain.probe_https_status)}</td>
+            <!-- Debug: ${JSON.stringify({is_online: subdomain.is_online, http: subdomain.probe_http_status, https: subdomain.probe_https_status})} -->
             <td>${formatDate(subdomain.discovered_at)}</td>
             <td>${subdomain.tool_name ? `<span class="tool-name-badge">${escapeHtml(subdomain.tool_name)}</span>` : '-'}</td>
             <td><a href="${escapeHtml(subdomain.uri || 'https://' + subdomain.subdomain)}" target="_blank" class="subdomain-uri">View</a></td>
             <td>
+                <button class="btn-icon btn-probe" onclick="probeSubdomain(${subdomain.id}, 'target')" title="Probe subdomain">
+                    <i class="fas fa-satellite-dish"></i>
+                </button>
                 <button class="btn-icon btn-delete" onclick="deleteSubdomainFromTarget(${subdomain.id}, event)" title="Delete subdomain">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -1850,7 +1888,7 @@ function updateSubdomainsTable(subdomains) {
     }
     
     if (subdomains.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No subdomains found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No subdomains found.</td></tr>';
         selectedSubdomains.clear();
         updateBulkActionsUI('results');
         return;
@@ -1865,12 +1903,17 @@ function updateSubdomainsTable(subdomains) {
                        ${selectedSubdomains.has(subdomain.id) ? 'checked' : ''}>
             </td>
             <td><span class="subdomain-name">${escapeHtml(subdomain.subdomain || '-')}</span></td>
+            <td>${renderStatusBadge(subdomain.is_online, subdomain.probe_http_status, subdomain.probe_https_status)}</td>
+            <!-- Debug: ${JSON.stringify({is_online: subdomain.is_online, http: subdomain.probe_http_status, https: subdomain.probe_https_status})} -->
             <td>${escapeHtml(subdomain.canonical_names || '-')}</td>
             <td>${formatSize(subdomain.size)}</td>
             <td>${subdomain.is_virtual_host === 'true' ? 'Yes' : 'No'}</td>
             <td>${subdomain.tool_name ? `<span class="tool-name-badge">${escapeHtml(subdomain.tool_name)}</span>` : '-'}</td>
             <td><a href="${escapeHtml(subdomain.uri || 'https://' + subdomain.subdomain)}" target="_blank" class="subdomain-uri">View</a></td>
             <td>
+                <button class="btn-icon btn-probe" onclick="probeSubdomain(${subdomain.id}, 'results')" title="Probe subdomain">
+                    <i class="fas fa-satellite-dish"></i>
+                </button>
                 <button class="btn-icon btn-delete" onclick="deleteSubdomain(${subdomain.id}, event)" title="Delete subdomain">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -1898,10 +1941,16 @@ async function loadAllSubdomains(page = 1, search = '') {
         const searchParam = search ? `&search=${encodeURIComponent(search)}` : '';
         const projectFilter = document.getElementById('allProjectFilter')?.value || '';
         const targetFilter = document.getElementById('allTargetFilter')?.value || '';
+        const statusFilter = document.getElementById('allStatusFilter')?.value || '';
+        const protocolFilter = document.getElementById('allProtocolFilter')?.value || '';
+        const responseCodeFilter = document.getElementById('allResponseCodeFilter')?.value || '';
         
         let url = `${API_BASE}/subdomains/all?page=${page}&limit=${limit}${searchParam}`;
         if (projectFilter) url += `&project=${encodeURIComponent(projectFilter)}`;
         if (targetFilter) url += `&target=${encodeURIComponent(targetFilter)}`;
+        if (statusFilter) url += `&status=${encodeURIComponent(statusFilter)}`;
+        if (protocolFilter) url += `&protocol=${encodeURIComponent(protocolFilter)}`;
+        if (responseCodeFilter) url += `&response_code=${encodeURIComponent(responseCodeFilter)}`;
         
         const response = await apiRequest(url);
         const projects = await apiRequest(`${API_BASE}/projects`);
@@ -1970,6 +2019,9 @@ function clearAllSubdomainsFilters() {
     document.getElementById('allSubdomainsSearch').value = '';
     document.getElementById('allProjectFilter').value = '';
     document.getElementById('allTargetFilter').value = '';
+    document.getElementById('allStatusFilter').value = '';
+    document.getElementById('allProtocolFilter').value = '';
+    document.getElementById('allResponseCodeFilter').value = '';
     loadAllSubdomains(1, '');
 }
 
@@ -2021,6 +2073,7 @@ function updateAllSubdomainsPagination() {
 function changeAllSubdomainsPage(page) {
     const searchTerm = document.getElementById('allSubdomainsSearch').value;
     loadAllSubdomains(page, searchTerm);
+    // Filters are already applied in loadAllSubdomains function
 }
 
 function displayAllSubdomains(subdomains) {
@@ -2037,7 +2090,7 @@ function displayAllSubdomains(subdomains) {
     }
     
     if (subdomains.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No subdomains found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No subdomains found</td></tr>';
         selectedAllSubdomains.clear();
         updateBulkActionsUI('all');
         return;
@@ -2054,10 +2107,15 @@ function displayAllSubdomains(subdomains) {
             <td><span class="subdomain-name">${escapeHtml(subdomain.subdomain)}</span></td>
             <td>${escapeHtml(subdomain.project_name)}</td>
             <td>${escapeHtml(subdomain.target_domain)}</td>
+            <td>${renderStatusBadge(subdomain.is_online, subdomain.probe_http_status, subdomain.probe_https_status)}</td>
+            <!-- Debug: ${JSON.stringify({is_online: subdomain.is_online, http: subdomain.probe_http_status, https: subdomain.probe_https_status})} -->
             <td>${formatDate(subdomain.discovered_at)}</td>
             <td>${subdomain.tool_name ? `<span class="tool-name-badge">${escapeHtml(subdomain.tool_name)}</span>` : '-'}</td>
             <td><a href="${escapeHtml(subdomain.uri || 'https://' + subdomain.subdomain)}" target="_blank" class="subdomain-uri">View</a></td>
             <td>
+                <button class="btn-icon btn-probe" onclick="probeSubdomain(${subdomain.id}, 'all')" title="Probe subdomain">
+                    <i class="fas fa-satellite-dish"></i>
+                </button>
                 <button class="btn-icon btn-delete" onclick="deleteSubdomainFromAll(${subdomain.id}, event)" title="Delete subdomain">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -2087,6 +2145,69 @@ function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function renderStatusBadge(isOnline, httpStatus, httpsStatus) {
+    // Handle null/undefined values
+    if (!isOnline || isOnline === 'pending') {
+        return '<div class="status-badges-container"><div class="status-badge-row"><span class="status-badge status-pending">Pending</span></div></div>';
+    }
+    
+    // Convert to numbers if they're strings
+    const httpCode = httpStatus != null ? parseInt(httpStatus) : null;
+    const httpsCode = httpsStatus != null ? parseInt(httpsStatus) : null;
+    
+    // Determine status badge
+    let statusBadge = '';
+    if (isOnline === 'online_both' || isOnline === 'online_http' || isOnline === 'online_https') {
+        statusBadge = '<span class="status-badge status-online-both">Online</span>';
+    } else if (isOnline === 'dns_only') {
+        statusBadge = '<span class="status-badge status-dns-only">DNS Only</span>';
+    } else if (isOnline === 'offline') {
+        statusBadge = '<span class="status-badge status-offline">Offline</span>';
+    } else {
+        statusBadge = '<span class="status-badge status-pending">Unknown</span>';
+    }
+    
+    // Build protocol and response code badges
+    const protocolBadges = [];
+    const codeBadges = [];
+    
+    const hasHttp = httpCode !== null && httpCode !== undefined && !isNaN(httpCode) && httpCode !== 0;
+    const hasHttps = httpsCode !== null && httpsCode !== undefined && !isNaN(httpsCode) && httpsCode !== 0;
+    
+    // HTTP protocol badge (if HTTP responded, even if 418)
+    if (hasHttp) {
+        protocolBadges.push('<span class="status-badge status-protocol-http">HTTP</span>');
+    }
+    
+    // HTTPS protocol badge (if HTTPS responded, even if 418)
+    if (hasHttps) {
+        protocolBadges.push('<span class="status-badge status-protocol-https">HTTPS</span>');
+    }
+    
+    // Response codes - if both are the same, show only once
+    if (hasHttp && hasHttps && httpCode === httpsCode) {
+        codeBadges.push(`<span class="status-badge status-code">${escapeHtml(httpCode.toString())}</span>`);
+    } else {
+        if (hasHttp) {
+            codeBadges.push(`<span class="status-badge status-code">${escapeHtml(httpCode.toString())}</span>`);
+        }
+        if (hasHttps) {
+            codeBadges.push(`<span class="status-badge status-code">${escapeHtml(httpsCode.toString())}</span>`);
+        }
+    }
+    
+    // Build container: status on first line, protocols and codes on second line
+    const secondLineBadges = [...protocolBadges, ...codeBadges];
+    const secondLine = secondLineBadges.length > 0 
+        ? `<div class="status-badge-row">${secondLineBadges.join(' ')}</div>` 
+        : '';
+    
+    return `<div class="status-badges-container">
+        <div class="status-badge-row">${statusBadge}</div>
+        ${secondLine}
+    </div>`;
 }
 
 function showToast(message, type = 'info') {
@@ -2609,6 +2730,128 @@ async function clearDatabase() {
         
     } catch (error) {
         showError('Failed to clear database: ' + error.message);
+    }
+}
+
+// Probe Subdomain Functions
+async function probeSubdomain(subdomainId, context = 'all') {
+    try {
+        const result = await apiRequest(`${API_BASE}/subdomains/${subdomainId}/probe`, 'POST');
+        
+        // Update the status in the displayed row
+        const row = document.querySelector(`tr[data-subdomain-id="${subdomainId}"]`);
+        if (row) {
+            const statusCell = row.querySelector('td:nth-child(4)') || row.querySelector('td:nth-child(5)');
+            if (statusCell) {
+                statusCell.innerHTML = renderStatusBadge(result.result.status, result.result.http_status_code, result.result.https_status_code);
+            }
+        }
+        
+        // Update in-memory data if available
+        if (context === 'results' && allSubdomains) {
+            const subdomain = allSubdomains.find(s => s.id === subdomainId);
+            if (subdomain) {
+                subdomain.is_online = result.result.status;
+            }
+        }
+        
+        showSuccess('Subdomain probed successfully');
+    } catch (error) {
+        showError('Failed to probe subdomain: ' + error.message);
+    }
+}
+
+async function bulkProbeSubdomains(context) {
+    let selectedIds = [];
+    
+    if (context === 'all') {
+        selectedIds = Array.from(selectedAllSubdomains);
+    } else if (context === 'project') {
+        selectedIds = Array.from(selectedProjectSubdomains);
+    } else if (context === 'target') {
+        selectedIds = Array.from(selectedTargetSubdomains);
+    } else if (context === 'results') {
+        selectedIds = Array.from(selectedSubdomains);
+    }
+    
+    if (selectedIds.length === 0) {
+        showError('Please select at least one subdomain to probe');
+        return;
+    }
+    
+    if (!confirm(`Probe ${selectedIds.length} selected subdomain(s)?`)) {
+        return;
+    }
+    
+    try {
+        const result = await apiRequest(`${API_BASE}/subdomains/probe`, 'POST', {
+            subdomain_ids: selectedIds
+        });
+        
+        if (result.job_id) {
+            // Show progress bar and start polling
+            showProbeProgress(context, result.job_id, result.subdomain_count);
+        } else {
+            showSuccess(`Probed ${result.subdomain_count} subdomain(s) successfully`);
+            // Reload the current view to show updated statuses
+            reloadCurrentView(context);
+        }
+    } catch (error) {
+        showError('Failed to probe subdomains: ' + error.message);
+    }
+}
+
+function showProbeProgress(context, jobId, total) {
+    const progressContainer = document.getElementById(`probeProgress${context.charAt(0).toUpperCase() + context.slice(1)}`);
+    const progressBar = document.getElementById(`probeProgressBar${context.charAt(0).toUpperCase() + context.slice(1)}`);
+    const progressCount = document.getElementById(`probeProgressCount${context.charAt(0).toUpperCase() + context.slice(1)}`);
+    
+    if (!progressContainer || !progressBar || !progressCount) {
+        return;
+    }
+    
+    // Show progress bar
+    progressContainer.style.display = 'block';
+    
+    // Poll for progress updates
+    const pollInterval = setInterval(async () => {
+        try {
+            const progress = await apiRequest(`${API_BASE}/probe/progress/${jobId}`);
+            
+            // Update progress bar
+            const percent = progress.progress_percent || 0;
+            progressBar.style.width = `${percent}%`;
+            progressCount.textContent = `${progress.completed} / ${progress.total}`;
+            
+            // Check if completed
+            if (progress.status === 'completed') {
+                clearInterval(pollInterval);
+                progressContainer.style.display = 'none';
+                showSuccess(`Probed ${progress.total} subdomain(s) successfully`);
+                reloadCurrentView(context);
+            } else if (progress.status === 'failed') {
+                clearInterval(pollInterval);
+                progressContainer.style.display = 'none';
+                showError('Probing failed');
+            }
+        } catch (error) {
+            // If job not found, assume it's done
+            clearInterval(pollInterval);
+            progressContainer.style.display = 'none';
+            reloadCurrentView(context);
+        }
+    }, 500); // Poll every 500ms
+}
+
+function reloadCurrentView(context) {
+    if (context === 'all') {
+        loadAllSubdomains();
+    } else if (context === 'project' && currentProjectId) {
+        loadProjectData(currentProjectId);
+    } else if (context === 'target' && currentTargetDomain) {
+        loadTargetSubdomains(currentTargetDomain);
+    } else if (context === 'results' && currentScanId) {
+        loadScanResults(currentScanId);
     }
 }
 
